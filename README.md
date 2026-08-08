@@ -9,8 +9,6 @@
 
 ## 1. Introdução: O Contexto e o Problema
 
-## 1. Introdução: O Contexto e o Problema
-
 O ecossistema de agentes de IA está evoluindo rapidamente. Em 2026, já não é mais ficção científica ter assistentes de IA capazes de escrever código, revisar arquiteturas e até gerenciar projetos. Mas há um problema fundamental: **como orquestrar múltiplos agentes de IA de forma eficiente?**
 
 Eu (André) mantenho um ecossistema crescente de agentes:
