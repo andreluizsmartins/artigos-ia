@@ -418,7 +418,84 @@ E realmente funcionou. Naquele momento, percebi que **agentes de IA podem ser t�
 
 ---
 
-## 7. Conclusão: Lições Aprendidas e Recomendações
+## 7. Análise Cruzada: O que os Artigos de Referência Explicam Sobre Esta Experiência
+
+Esta seção cruza a experiência do OraculumAI com três artigos que escrevi sobre pesquisa e engenharia de IA: *"Quando os Agentes de IA Escrevem Código"* (SlopCodeBench), *"150 Agentes de IA, 1 Conjunto de Dados, Resultados Completamente Diferentes"* (Nonstandard Errors) e *"Seja Como um Peixe Dourado"* (Goldfish Loss). Cada um deles documenta um problema que encontrei **na prática** durante o desenvolvimento do OraculumAI — e aqui mostro como foi resolvido com base nesse conhecimento.
+
+### 7.1 SlopCodeBench: Por que o OraculumAI não virou "slop"
+
+**O problema documentado no artigo de referência:** o benchmark SlopCodeBench (Wisconsin-Madison, Washington State e MIT, 2026) mediu o que acontece quando agentes de IA estendem o próprio código ao longo do tempo. Os resultados foram alarmantes: nenhum agente resolveu um problema completo, o melhor passou apenas **14,8% dos checkpoints**, e **77% das trajetórias** sofreram erosão estrutural — com código **2,3x mais verboso** que o humano. A causa raiz: quando o mesmo agente cria e avalia o próprio código, cada decisão local parece razoável, e o acúmulo de decisões razoáveis produz um sistema globalmente ruim — **dívida técnica silenciosa**.
+
+**O que isso significaria para o OraculumAI:** um desenvolvimento de 41 arquivos e 5.277 linhas em 9 sprints sequenciais era o cenário perfeito para degradação acumulada. Cada sprint estendia o código da anterior — exatamente o padrão que o SlopCodeBench mostrou degradar.
+
+**Como foi resolvido — a saída que o próprio artigo aponta:**
+
+1. **SDD antes de codificar:** cada sprint nasceu de uma spec (PROPOSAL → DESIGN → TASKS) que delimitava o escopo. O artigo mostra que o SDD reduz o espaço de decisões ruins que se acumulam — quando o agente sabe exatamente o que deve fazer (e o que está **fora** do escopo), ele gera menos slop.
+
+2. **Sprints pequenas com contexto granular:** em vez de uma entrega gigante, 9 sprints de 3-7 horas com saída revisável antes da próxima começar. O SlopCodeBench mostra que changes grandes levam agentes a alterar o que não precisava.
+
+3. **Separação de papéis — quem cria não julga:** o dado mais importante do SlopCodeBench é que a auto-avaliação é cega. O workflow do OraculumAI reproduziu a separação que o artigo recomenda:
+   - **Heitor implementa** (código da sprint, com contexto limpo)
+   - **Tânia revisa** (com contexto de revisor, sem carregar as decisões intermediárias do implementador)
+   - **André orquestra** (define specs, aprova entregas, toma decisões estratégicas)
+
+   Foi exatamente isso que aconteceu no caso real da auditoria do Heitor (seção 6): quando o revisor era o mesmo agente que criou, a qualidade caiu; quando papéis se separaram e um modelo complementar auditou, 13 gaps novos emergiram.
+
+**Evidência de que funcionou:** os 18 testes automatizados passaram 100% ao final, e não houve fase de "refatoração de emergência" — o retrabalho real foi detectado **dentro** das sprints pela revisão cruzada, não depois.
+
+### 7.2 Nonstandard Errors: Escolha de Modelo e Convergência por Especificação
+
+**O problema documentado no artigo de referência:** o experimento #AIcap (University of Texas at Dallas, 2026) deu a **150 agentes Claude Code** os mesmos 66 GB de dados e 6 hipóteses — e eles chegaram a conclusões opostas. O estudo cunhou o termo **Nonstandard Errors (NSE)**: a incerteza não vem dos dados, mas das **escolhas analíticas** de cada agente. Dois achados são centrais:
+
+- **Modelos têm "estilos empíricos" estáveis:** Sonnet 4.6 preferiu autocorrelação (87%) e regressões em nível (96%); Opus 4.6 preferiu variance ratio (100%) e log OLS (64%). A escolha do modelo embute uma personalidade metodológica.
+- **Hipóteses abstratas divergem; especificações concretas convergem:** H4 (volume de trading) teve IQR de 10,69%/ano com conclusões opostas; H2 (spread bid-ask, que já definia a medida) teve IQR de 0,43 — concordância total.
+
+**Como isso apareceu no OraculumAI:**
+
+1. **O erro do LLaMA 8B foi um NSE de modelo:** quando Tânia chamou Heitor com o modelo errado, a auditoria foi "genérica demais" — o modelo não tinha profundidade técnica para a tarefa. Com DeepSeek V4 Flash, o mesmo agente encontrou 13 gaps de alta qualidade. Assim como o artigo mostra que Sonnet e Opus têm estilos empíricos diferentes, aqui o DeepSeek tinha a **capacidade de auditoria técnica** que o LLaMA não tinha. **A escolha do modelo importa — e o tipo de tarefa determina qual modelo escolher.**
+
+2. **Critérios de aceite verificáveis reduzem o NSE na engenharia:** o achado de que especificações concretas eliminam divergência (H2 vs H4) tem correlato direto no meu workflow. "Login funciona" é vago (admite múltiplas interpretações); "login com senha correta retorna access_token + refresh_token" é específico (só uma interpretação possível). Cada sprint do OraculumAI tinha critérios objetivos — e os testes automatizados eram a "medida" fixa que impedia divergência de interpretação entre Tânia e Heitor.
+
+3. **O SPECULI transformou a auditoria em especificação:** a classificação de gaps por severidade (BLOQUEADOR / IMPORTANTE / MELHORIA) é a versão de engenharia do que o #AIcap mostrou: quando a pergunta é vaga, cada agente interpreta diferente; quando é específica, todos convergem. Classificar o gap com severidade e critério objetivo força a convergência.
+
+**Por que a revisão cruzada funcionou aqui e o peer review falhou no experimento:** o #AIcap mostrou que peer review por IA **não reduz dispersão** (agentes leem críticas, mudam — mas de forma não direcional) e que a exposição a "top papers" converge por **imitação cega**, não por compreensão. No OraculumAI, a revisão da Tânia sobre o código do Heitor funcionou porque havia três elementos que o experimento não tinha:
+   - **Critérios de aceite objetivos** — a revisão tinha uma régua externa, não era opinião contra opinião
+   - **Testes automatizados executáveis** — a "medida" era rodada, não debatida
+   - **Decisão final humana** — André aprovava/rejeitava como árbitro final (convergência racional, não imitação)
+
+### 7.3 Goldfish Loss: Gestão de Memória e Anti-Vazamento no Mundo Prático
+
+**O problema documentado no artigo de referência:** o paper Goldfish Loss (NeurIPS 2024, University of Maryland + Max Planck) ataca um problema de quem treina LLMs: os modelos **memorizam** trechos exatos dos dados de treinamento, criando riscos de copyright, licença e privacidade (PII). A solução: **esquecimento por design** — durante o treinamento, uma fração dos tokens é excluída do cálculo do loss, de forma que o modelo aprende o contexto mas nunca aprende a reproduzir os tokens mascarados. O efeito é exponencial: em sequências de 256 tokens, a probabilidade de reprodução verbatim cai de 77,4% para **1,06%**. E a performance se mantém — desde que se compense com mais tokens supervisionados.
+
+**O correlato prático no OraculumAI — duas aplicações concretas:**
+
+1. **Gestão de contexto: "memória curta por design" em agentes operacionais.** O problema que eu enfrentei no mundo real era o inverso do treinamento: a janela de contexto da Tânia enchia após várias sprints, e ela precisava "limpar o contexto" para continuar produtiva. A solução adotada seguiu a mesma filosofia do Goldfish Loss — **retenção seletiva por design**:
+   - **Sliding window de 300k tokens** no HermesAdapter (limite explícito de contexto por sessão)
+   - **Summarization** de conversas longas (o equivalente ao "hash localizado": o que se repete é comprimido, o essencial permanece)
+   - **MEMORY.md como memória persistente**: em vez de depender do contexto volátil, o agente salva o essencial em arquivo e descarta o resto — exatamente como o Goldfish Loss retém o conhecimento supervisionado e descarta os tokens mascarados
+   - O resultado foi o mesmo que o paper documenta: **performance mantida com menos memorização** — a Tânia continuou produtiva nas sprints 7-9 sem degradação de qualidade, porque o essencial estava salvo, não "memorizado" no contexto.
+
+2. **Anti-vazamento: a preocupação com PII tem correlato no código.** O Goldfish Loss existe porque modelos podem regurgitar dados sensíveis. No OraculumAI, o mesmo princípio de proteção apareceu na engenharia de segurança:
+   - **Logger com filtro de segredos** — o sistema não loga tokens/senhas (o backend foi implementado para nunca "memorizar" credenciais no log)
+   - **Refresh token rotativo com reuse detection** — token usado é invalidado imediatamente
+   - **Anti-força-bruta** com rate limit — a senha única não pode ser testada em loop
+   - Ou seja: se o modelo de IA *memoriza* o que não deve (o problema do Goldfish), o sistema de orquestração de agentes deve garantir que as credenciais que passam por ele *nunca vazem* — foi um requisito de design desde a Sprint 2, não um patch posterior.
+
+**Síntese da análise cruzada:**
+
+| Problema (artigo de referência) | Evidência no OraculumAI | Como foi resolvido |
+|----------------------------------|--------------------------|--------------------|
+| **Degradação de código** (SlopCodeBench: erosão em 77%, verbosidade 2.3x) | 41 arquivos, 5.277 linhas em 9 sprints sequenciais | SDD + sprints pequenas + revisão com papéis separados (quem cria não julga) |
+| **Divergência de agentes** (NSE: IQR até 10,69%/ano, estilos empíricos por modelo) | Auditoria genérica do LLaMA 8B vs. 13 gaps do DeepSeek | Escolha consciente do modelo por tarefa + critérios de aceite verificáveis + SPECULI com severidade |
+| **Peer review ineficaz** (NSE: mudanças não direcionais, imitação cega) | Revisão Tânia↔Heitor produtiva | Régua externa (testes executáveis) + decisão final humana |
+| **Memorização/vazamento** (Goldfish: reprodução verbatim, PII) | Contexto enchendo + credenciais circulando no sistema | Retenção seletiva (300k sliding window, summarization, MEMORY.md) + filtro de segredos no logger |
+| **Performance vs. segurança de memória** (Goldfish: paridade com mais tokens) | Sprints 7-9 sem degradação após limpeza de contexto | Compensação: persistir essencial em arquivo em vez de "memorizar" no contexto |
+
+**Conclusão da análise cruzada:** os três artigos, escritos antes e independentemente desta experiência, previram problemas que eu encontrei na prática em um único dia de desenvolvimento. E mais importante: as soluções que eles apontam — SDD com escopo delimitado, separação de papéis, especificações verificáveis, escolha consciente de modelo, gestão ativa de memória e proteção contra vazamento — foram exatamente as que funcionaram no OraculumAI. Não é coincidência: **o que os benchmarks acadêmicos medem em laboratório, a metodologia aplicada converte em prática.**
+
+---
+
+## 8. Conclusão: Lições Aprendidas e Recomendações
 
 ![Mockup da interface do OraculumAI](artigo/mockup-oraculumai.png)
 
@@ -510,7 +587,12 @@ O OraculumAI está funcional, mas há melhorias a fazer:
 
 ---
 
-## 8. Referências e Créditos
+## 9. Referências e Créditos
+
+**Artigos de referência do autor (usados na análise cruzada da seção 7):**
+- *Quando os Agentes de IA Escrevem Código: O Problema da Degradação e a Saída pelo Design* — SlopCodeBench (Wisconsin-Madison, Washington State, MIT, 2026) — https://github.com/andreluizsmartins/Agentes-de-IA-Escrevem-Codigo
+- *150 Agentes de IA, 1 Conjunto de Dados, Resultados Completamente Diferentes: O Problema dos "Erros Não Padrão"* — #AIcap (UT Dallas, 2026) — https://github.com/andreluizsmartins/Nonstandard-Errors-AI-Agents
+- *Seja Como um Peixe Dourado: Como Fazer LLMs Esquecerem de Propósito* — Goldfish Loss (NeurIPS 2024, University of Maryland + Max Planck Institute) — https://github.com/andreluizsmartins/Goldfish-Loss-LLM-Anti-Memorization
 
 **Código-fonte do OraculumAI:**
 - Backend: FastAPI + SQLite + HermesAdapter
