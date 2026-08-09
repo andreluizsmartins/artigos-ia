@@ -424,6 +424,8 @@ Esta seção cruza a experiência do OraculumAI com três artigos que escrevi so
 
 ### 7.1 SlopCodeBench: Por que o OraculumAI não virou "slop"
 
+![Degradação de código: código limpo vs. slop gerado por agentes](artigo/slop-degradacao.png)
+
 **O problema documentado no artigo de referência:** o benchmark SlopCodeBench (Wisconsin-Madison, Washington State e MIT, 2026) mediu o que acontece quando agentes de IA estendem o próprio código ao longo do tempo. Os resultados foram alarmantes: nenhum agente resolveu um problema completo, o melhor passou apenas **14,8% dos checkpoints**, e **77% das trajetórias** sofreram erosão estrutural — com código **2,3x mais verboso** que o humano. A causa raiz: quando o mesmo agente cria e avalia o próprio código, cada decisão local parece razoável, e o acúmulo de decisões razoáveis produz um sistema globalmente ruim — **dívida técnica silenciosa**.
 
 **O que isso significaria para o OraculumAI:** um desenvolvimento de 41 arquivos e 5.277 linhas em 9 sprints sequenciais era o cenário perfeito para degradação acumulada. Cada sprint estendia o código da anterior — exatamente o padrão que o SlopCodeBench mostrou degradar.
@@ -445,6 +447,8 @@ Esta seção cruza a experiência do OraculumAI com três artigos que escrevi so
 
 ### 7.2 Nonstandard Errors: Escolha de Modelo e Convergência por Especificação
 
+![Agentes de IA divergindo ao analisar os mesmos dados (NSE)](artigo/nse-divergencia.png)
+
 **O problema documentado no artigo de referência:** o experimento #AIcap (University of Texas at Dallas, 2026) deu a **150 agentes Claude Code** os mesmos 66 GB de dados e 6 hipóteses — e eles chegaram a conclusões opostas. O estudo cunhou o termo **Nonstandard Errors (NSE)**: a incerteza não vem dos dados, mas das **escolhas analíticas** de cada agente. Dois achados são centrais:
 
 - **Modelos têm "estilos empíricos" estáveis:** Sonnet 4.6 preferiu autocorrelação (87%) e regressões em nível (96%); Opus 4.6 preferiu variance ratio (100%) e log OLS (64%). A escolha do modelo embute uma personalidade metodológica.
@@ -464,6 +468,8 @@ Esta seção cruza a experiência do OraculumAI com três artigos que escrevi so
    - **Decisão final humana** — André aprovava/rejeitava como árbitro final (convergência racional, não imitação)
 
 ### 7.3 Goldfish Loss: Gestão de Memória e Anti-Vazamento no Mundo Prático
+
+![Memória seletiva: retenção do essencial, esquecimento do resto](artigo/goldfish-memoria.png)
 
 **O problema documentado no artigo de referência:** o paper Goldfish Loss (NeurIPS 2024, University of Maryland + Max Planck) ataca um problema de quem treina LLMs: os modelos **memorizam** trechos exatos dos dados de treinamento, criando riscos de copyright, licença e privacidade (PII). A solução: **esquecimento por design** — durante o treinamento, uma fração dos tokens é excluída do cálculo do loss, de forma que o modelo aprende o contexto mas nunca aprende a reproduzir os tokens mascarados. O efeito é exponencial: em sequências de 256 tokens, a probabilidade de reprodução verbatim cai de 77,4% para **1,06%**. E a performance se mantém — desde que se compense com mais tokens supervisionados.
 
